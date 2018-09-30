@@ -3,20 +3,21 @@ import time
 import threading
 import copy
 import collections
+import sys
 from maps.maze_basic import Maze
 from maps.maze_board import MazeBoard
 from agents.ddqn_agent import DQNAgent
 
 INC_EPISODE_THRESHOLD = 17
 INC_EPISODE_RATE = 1.1
-DELAY_TIME = 0.01
 
 
 class MazePlayer(object):
-    def __init__(self, quiet=False):
+    def __init__(self, delay=0.01, quiet=False):
         ''' init function of class MazePlayer'''
 
         # do not display board in quiet mode
+        self.delay_default = delay
         self.quiet = quiet
 
         # initilization
@@ -134,7 +135,7 @@ class MazePlayer(object):
         self.done_t = 0
         self.lost_t = 0
         self.verify_t = 0
-        self.delay_t = DELAY_TIME
+        self.delay_t = self.delay_default
         self.last_steps = 0
         self.cur_episode = 0
 
@@ -152,12 +153,10 @@ class MazePlayer(object):
             if not self.quiet:
                 self.board.render()
                 self.board.set_text(self.maze.cur_coords, "{}".format(5 - n))
-            else:
-                print(5 - n)
             time.sleep(0.5)
 
         for self.cur_episode in range(self.episode):
-            time.sleep(0)
+            time.sleep(self.delay_t)
             done, steps = verify_exp(self.delay_t)
             if done:
                 if self.verify_suc_proc():
@@ -214,7 +213,7 @@ class MazePlayer(object):
             print("[{}] Out of verification status...".format(
                 self.cur_episode))
             self.verify_t = 0
-            self.delay_t = DELAY_TIME
+            self.delay_t = self.delay_default
 
     def verify_exp(self, deplay_time=0.01, color="red", print_track=False):
         i = 0
@@ -246,9 +245,7 @@ class MazePlayer(object):
                 break
         return done, i
 
-    def verify_exp_quiet(self,
-                         deplay_time=0.01,
-                         color="red",
+    def verify_exp_quiet(self, deplay_time=0.1, color="red",
                          print_track=False):
         i = 0
         done = False
@@ -268,7 +265,7 @@ class MazePlayer(object):
             if i > self.max_step:
                 break
             # have to wait for a while to avoid keras crash
-            time.sleep(deplay_time)
+            time.sleep(deplay_time + np.random.rand())
         return done, i
 
     def display_q(self, display_type):
@@ -302,5 +299,14 @@ class MazePlayer(object):
                 self.agent.epsilon, self.agent.score, self.agent.train_count))
 
 
+def main():
+    if len(sys.argv) == 3:
+        delay = float(sys.argv[1])
+        quiet = True if str(sys.argv[2]) == "True" else False
+        MazePlayer(delay=delay, quiet=quiet)
+    else:
+        MazePlayer()
+
+
 if __name__ == "__main__":
-    MazePlayer(True)
+    main()
