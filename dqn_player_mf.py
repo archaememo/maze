@@ -1,52 +1,55 @@
-import sys
 import numpy as np
 import time
-sys.path.append('.')
-from maps.maze_basic import Maze  # flake8: noqa
-from maps.maze_board import MazeBoard  # flake8: noqa
-from agents.dqn_agent import DQNAgent  # flake8: noqa
-
+from maps.maze_basic import Maze
+from maps.maze_board import MazeBoard
+from agents.ddqn_agent import DQNAgent
 
 GRID_SIZE = 16
-BLOCK_NUM = GRID_SIZE * 3
-INPUT_FEATURE = 2
+BLOCK_NUM = GRID_SIZE
+INPUT_FEATURE = BLOCK_NUM * 2 + 4
 EPISODES = 5000
 MAX_STEPS = int(GRID_SIZE * BLOCK_NUM)
-LEARN_BATCH = int(GRID_SIZE * GRID_SIZE / 2 )
+LEARN_BATCH = int(GRID_SIZE * GRID_SIZE / 2)
+
 
 def play_maze(display_type=0):
     # Iterate the game
     average_steps = 0
     bad_scores = 0
-    done = True
+    done = False
     for e in range(EPISODES):
         n_rpos = (1 != e % 3)
         if n_rpos:
-            state = env.reset()
+            _ = env.reset()
         else:
-            state = env.reset(r_position=True)
+            _ = env.reset(r_position=True)
+        state, _ = env.get_all_distance()
         state = np.reshape(state, [1, INPUT_FEATURE])
         for time_t in range(MAX_STEPS):
             # Decide action
             action, is_predict, raw = agent.act_raw(state)
             old_coords = env.cur_coords.copy()
-            next_state, reward, done = env.step(action)
+            _, reward, done = env.step(action)
+            next_state, _ = env.get_all_distance()
             next_state = np.reshape(next_state, [1, INPUT_FEATURE])
             board.set_me(env.cur_coords)
             if is_predict and display_type:
                 display_action(old_coords, action, raw, display_type)
             board.render()
             # Remember the previous state, action, reward, and done
-            agent.remember(state, action, reward, next_state, done)
+            agent.remember((state, action, reward, next_state, done))
             # make next_state the new current state for the next frame.
             state = next_state
             if done:
                 break
 
         # stop train if the score is good enough
-        if ((average_steps < GRID_SIZE * 2)) and \
-           (agent.epsilon < (agent.epsilon_min + 1) / 3):
-           break
+        if ((average_steps < GRID_SIZE * 3)) and \
+           (agent.epsilon < (agent.epsilon_min + 1) / 4):
+            if verify_exp():
+                print("success to find the goal")
+                break
+            print("fail to find the goal")
 
         if done:
             if time_t < GRID_SIZE * 2:
@@ -60,7 +63,7 @@ def play_maze(display_type=0):
         else:
             if not n_rpos:
                 agent.forget(time_t)
-        
+
         agent.train(batch_size=LEARN_BATCH, mod_epsilon=False)
 
         if n_rpos:
@@ -72,35 +75,38 @@ def play_maze(display_type=0):
             else:
                 bad_scores += 1
                 agent.forget(time_t)
-                if bad_scores % 5 == 4:
+                if bad_scores % 20 == 19:
                     agent.increase_epsilon()
                     bad_scores = 0
 
         # print the score and break out of the loop
-        print("episode: {}/{}, round-steps: {},".format(e, EPISODES, time_t),
-              "avg-steps: {}->{}, epsilon: {:.3f}".format(
-                  int(old_step), int(average_steps), agent.epsilon))
+        print(
+            "episode: {}/{}, round-steps: {},".format(e, EPISODES, time_t),
+            "avg-steps: {}->{}, epsilon: {:.3f}".format(
+                int(old_step), int(average_steps), agent.epsilon))
 
-    show_time()
 
-
-def show_time():
-    print("Show time :-)")
+def verify_exp():
     i = 0
     done = False
-    state = env.reset(dis=GRID_SIZE)
+    _ = env.reset()
+    state, _ = env.get_all_distance()
     board.set_me(env.cur_coords)
     while not done:
         i = i + 1
-        state = np.reshape(state, [1, env.n_features])
+        state = np.reshape(state, [1, BLOCK_NUM * 2 + 4])
         old_coords = env.cur_coords.copy()
         action, _, _ = agent.act_raw(state, True)
         print("step:", i)
-        state, _, done = env.step(action, print_track=True)
+        _, _, done = env.step(action, print_track=True)
+        state, _ = env.get_all_distance()
         board.set_me(env.cur_coords)
-        board.set_text(old_coords, "X",color="red")
+        board.set_text(old_coords, "X", color="red")
         board.render()
         time.sleep(0.5)
+        if i > MAX_STEPS:
+            break
+    return done
 
 
 def display_action(coords, action, raw_action, display_type=1):
@@ -120,15 +126,15 @@ def display_action(coords, action, raw_action, display_type=1):
 
 
 if __name__ == "__main__":
-    env = Maze(grid_size=GRID_SIZE, block_num=BLOCK_NUM )
+    env = Maze(grid_size=GRID_SIZE, block_num=BLOCK_NUM)
     board = MazeBoard(env.get_r_map(), unit=40)
     agent = DQNAgent(
         INPUT_FEATURE,
         env.n_actions,
-        mem_len= MAX_STEPS * 10,
+        mem_len=MAX_STEPS * 10,
         layer_info=[
-            INPUT_FEATURE * GRID_SIZE, GRID_SIZE * GRID_SIZE, GRID_SIZE * GRID_SIZE,
-            GRID_SIZE * env.n_actions
+            GRID_SIZE * BLOCK_NUM, GRID_SIZE * BLOCK_NUM * env.n_actions,
+            GRID_SIZE * BLOCK_NUM * env.n_actions, GRID_SIZE * env.n_actions
         ])
     board.set_origin(env.cur_coords)
     board.after(100, play_maze, 1)

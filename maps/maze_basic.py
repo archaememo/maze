@@ -66,14 +66,14 @@ class Maze:
                 self.r_map[w][h] = BLOCK
 
         # generate me
-        self.reset(r_position=True, reset_origin=True, dis=self.grid_size)
+        self.reset(r_position=True, reset_origin=True, distance=self.grid_size)
 
-    def reset(self, r_position=False, reset_origin=False, dis=0):
+    def reset(self, r_position=False, reset_origin=False, distance=0):
         if r_position:
             w = random.randrange(self.grid_size)
             h = random.randrange(self.grid_size)
             while (EMPTY != self.r_map[w][h]) or (np.sum(
-                    np.abs(np.array([w, h]) - self.goal_coords)) < dis):
+                    np.abs(np.array([w, h]) - self.goal_coords)) < distance):
                 w = random.randrange(self.grid_size)
                 h = random.randrange(self.grid_size)
             if reset_origin:

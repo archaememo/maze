@@ -50,6 +50,7 @@ class DQNAgent:
         self.target_model._make_predict_function()
         self.graph = tf.get_default_graph()
         self.session = K.get_session()
+        self.score = 0
 
     def _create_mode(self):
         model = Sequential()
@@ -154,8 +155,10 @@ class DQNAgent:
                 if (self.epsilon > self.epsilon_min) and mod_epsilon:
                     self.epsilon *= self.epsilon_decay
                 self.train_count += 1
-                if self.train_count % self.state_size == self.state_size - 1:
+                if self.train_count % 32 == 31:
                     self._update_target()
+                    self.score = self.eval_model.evaluate(
+                        state_batch, target_batch, verbose=0)
 
     def train_all(self, mod_epsilon=True):
         self.train(len(self.memory), mod_epsilon)

@@ -12,9 +12,6 @@ INPUT_FEATURE = GRID_SIZE * GRID_SIZE
 EPISODES = 2000
 MAX_STEPS = int(GRID_SIZE * BLOCK_NUM )
 
-
-
-
 get_state = lambda x: int(x[1] * GRID_SIZE + x[0])
 
 def play_maze(display_type=0):
@@ -82,7 +79,7 @@ def show_time():
     print("Show time :-)")
     i = 0
     done = False
-    _ = env.reset(dis=GRID_SIZE)
+    _ = env.reset()
     board.set_me(env.cur_coords)
     board.render()
     while not done:

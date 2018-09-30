@@ -23,6 +23,8 @@ class DQNAgent:
         self.epsilon_min = 0.01
         self.epsilon_decay = epsilon_decay
         self.learning_rate = learning_rate
+        self.train_count = 0
+        self.score = 0
         if len(layer_info) < 1:
             self.layer_info = [
                 self.state_size * self.state_size,
@@ -129,6 +131,10 @@ class DQNAgent:
         self.model.fit(state_batch, target_batch, epochs=1, verbose=0)
         if (self.epsilon > self.epsilon_min) and mod_epsilon:
             self.epsilon *= self.epsilon_decay
+        self.train_count += 1
+        if self.train_count % 32 == 31:
+            self.score = self.model.evaluate(
+                state_batch, target_batch, verbose=0)
 
     def train_all(self, mod_epsilon=True):
         self.train(len(self.memory), mod_epsilon)
