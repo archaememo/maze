@@ -13,15 +13,19 @@ INC_EPISODE_RATE = 1.1
 
 
 class MazePlayer(object):
-    def __init__(self, delay=0.01, quiet=False):
+    def __init__(self,
+                 delay=0.01,
+                 quiet=False,
+                 grid_size=8,
+                 block_num=8,
+                 explorer_num=4):
         ''' init function of class MazePlayer'''
 
-        # do not display board in quiet mode
-        self.delay_default = delay
-        self.quiet = quiet
-
+        print(
+            "Play with parameters: delay={}, quiet={}, grid={}, block={}, explorer={}".
+            format(delay, quiet, grid_size, block_num, explorer_num))
         # initilization
-        self._init_variables()
+        self._init_variables(delay, quiet, grid_size, block_num, explorer_num)
         self._init_maze_map()
         self._init_agent()
         self._init_players()
@@ -34,15 +38,18 @@ class MazePlayer(object):
             self.thread_run = False
             [player.join() for player in self.players]
 
-    def _init_variables(self):
-        self.grid_size = 16
-        self.n_block = self.grid_size
+    def _init_variables(self, delay, quiet, grid_size, block_size,
+                        explorer_num):
+        self.delay_default = delay
+        self.quiet = quiet
+        self.grid_size = grid_size
+        self.n_block = block_size
+        self.n_explorer = explorer_num
         self.max_step = self.grid_size * self.grid_size
         self.episode = 50000
         self.learn_batch = self.n_block
-        self.n_player = 4
         self.pixel_unit = 40
-        self.mem_len = self.max_step * self.n_player * 4
+        self.mem_len = self.max_step * self.n_explorer * 4
         self.start_t = time.time()
 
     def _init_maze_map(self):
@@ -68,7 +75,7 @@ class MazePlayer(object):
         self.players = [
             threading.Thread(
                 target=self.explore_thread, args=(copy.deepcopy(self.maze), i))
-            for i in range(self.n_player)
+            for i in range(self.n_explorer)
         ]
         self.players.append(
             threading.Thread(target=self.train_thread, args=(0, )))
@@ -81,9 +88,10 @@ class MazePlayer(object):
 
     def explore_thread(self, env, i):
         done = False
-        print("explore_thread-{} started...".format(i))
+        if not self.quiet:
+            print("explore_thread-{} started...".format(i))
         cache = collections.deque(maxlen=self.grid_size)
-        time.sleep(np.random.rand())
+        # time.sleep(np.random.rand())
         while self.thread_run:
             if ((not self.wait_verify)
                     and np.random.rand() <= self.agent.epsilon):
@@ -119,8 +127,9 @@ class MazePlayer(object):
         #   print("player_thread-{} stopped...".format(i))
 
     def train_thread(self, i):
-        print("train_thread started...")
-        time.sleep(np.random.rand())
+        if not self.quiet:
+            print("train_thread started...")
+        # time.sleep(np.random.rand())
         while (self.thread_run):
             # stop training to verify the result
             if self.wait_verify:
@@ -140,7 +149,9 @@ class MazePlayer(object):
         self.cur_episode = 0
 
         # start all players, include explore and train
-        [player.start() for player in self.players]
+        for player in self.players:
+            player.start()
+            time.sleep(1)
 
         if not self.quiet:
             self._init_board()
@@ -265,7 +276,7 @@ class MazePlayer(object):
             if i > self.max_step:
                 break
             # have to wait for a while to avoid keras crash
-            time.sleep(deplay_time + np.random.rand())
+            time.sleep(deplay_time)
         return done, i
 
     def display_q(self, display_type):
@@ -300,12 +311,26 @@ class MazePlayer(object):
 
 
 def main():
-    if len(sys.argv) == 3:
-        delay = float(sys.argv[1])
-        quiet = True if str(sys.argv[2]) == "True" else False
-        MazePlayer(delay=delay, quiet=quiet)
-    else:
-        MazePlayer()
+    default_params = [float(0.01), False, int(16), int(16), int(4)]
+    analysis = [
+        lambda x: float(x), lambda x: x in ["True", "true", "TRUE"],
+        lambda x: int(x), lambda x: int(x), lambda x: int(x)
+    ]
+    params = default_params[:]
+    try:
+        for i in range(min(len(params), len(sys.argv) - 1)):
+            params[i] = list(map(analysis[i], [default_params[i]]))[0]
+    except Exception as e:
+        print(e)
+        print("going to start with default configration")
+        params = default_params[:]
+
+    MazePlayer(
+        delay=params[0],
+        quiet=params[1],
+        grid_size=params[2],
+        block_num=params[3],
+        explorer_num=params[4])
 
 
 if __name__ == "__main__":
