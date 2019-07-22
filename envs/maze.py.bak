@@ -15,10 +15,7 @@ import random
 import gym
 import gym.spaces as spaces
 # import os
-try:
-    import envs.board as board
-except:
-    import board
+import envs.board as board
 import sys
 if sys.version_info.major == 2:
     import Tkinter as tk
@@ -52,6 +49,7 @@ class Maze(board.Board, gym.Env):
             np.array([0, 0, BLOCK, BLOCK, BLOCK, BLOCK]),
             np.array([width, height, EMPTY, EMPTY, EMPTY, EMPTY],
                      dtype=np.int64))
+
     def generate_maze(self):
         # clear map
         self.maze_map = [[0 for i in range(self.width)]
@@ -139,9 +137,6 @@ class Maze(board.Board, gym.Env):
         else:
             fill_color = 'gray'
         self.set_text(position[0], position[1], "X", fill_color)
-
-    def get_poition(self):
-        return self.observation(self.cur_position)
 
     def observation(self, position):
         distance = position - self.goal_position
@@ -232,7 +227,7 @@ class Maze(board.Board, gym.Env):
 if __name__ == "__main__":
     env = Maze()
     env.generate_maze()
-
+    # env.mainloop()
     for i in range(100000):
         # debug
         env.render()

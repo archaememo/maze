@@ -31,7 +31,8 @@ class AbstractPlayer(object):
                  delay=DISPLAY_DELAY,
                  quiet=False,
                  explorer_num=EXPLORE_NUM,
-                 confirm_stop=True):
+                 confirm_stop=True,
+                 factor=1):
         ''' init function of class MazePlayer'''
         # initilization
         self.AgentClass = AgentClass
@@ -48,15 +49,17 @@ class AbstractPlayer(object):
         self.start_t = time.time()
         self.confirm_stop = confirm_stop
         self.wait_verify = False
+        self.factor = factor
         self._init_agent()
 
     def _init_agent(self):
         self.agent = self.AgentClass(self.n_features,
-                                     self.n_actions)
+                                     self.n_actions,
+                                     factor=self.factor)
 
     def explore_process(self, env):
         done = False
-        state = env.get_poition()
+        state = env.reset()
         cache = []
         for _ in range(self.max_step):
             action, _ = self.agent.act(state)
@@ -72,7 +75,6 @@ class AbstractPlayer(object):
                 for _ in range(8):
                     for r in cache[-8:]:
                         self.agent.remember(r)
-                env.reset()
                 break
             state = next_state
         for r in cache:
@@ -93,6 +95,11 @@ class AbstractPlayer(object):
         self.last_steps = 0
         self.cur_episode = 0
 
+        # if not self.quiet:
+        #     verify_exp = self.verify_exp
+        # else:
+        #     verify_exp = self.verify_exp_quiet
+
         for self.cur_episode in range(self.episode):
             if not self.wait_verify:
                 mod_epsilon = self.explore_process(self.maze)
@@ -105,7 +112,6 @@ class AbstractPlayer(object):
                         break
                 else:
                     self.verify_fail_proc(steps)
-                    self.maze.reset()
                 if not self.quiet:
                     self.statistic()
         self.statistic()
@@ -182,6 +188,26 @@ class AbstractPlayer(object):
                 break
         return reward, done, i
 
+    # def verify_exp_quiet(self, deplay_time=0.1):
+    #     i = 0
+    #     done = False
+    #     state = self.maze.reset()
+    #     track = [list(state)]
+    #     while not done:
+    #         i = i + 1
+    #         action, _ = self.agent.act(state, True)
+    #         state, reward, done = self.maze.step(action,
+    #                                              print_track=print_track)
+    #         # state, _ = self.maze.get_features()
+    #         if list(state) in track:
+    #             break
+    #         else:
+    #             track.append(list(state))
+    #         if i > self.max_step:
+    #             break
+    #         # have to wait for a while to avoid keras crash
+    #         # time.sleep(deplay_time)
+    #     return reward, done, i
 
     def statistic(self):
         print("[{}] time:{:.2f}, steps:{}, epsilon:{:.3f}, "

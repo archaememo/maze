@@ -2,6 +2,7 @@ from envs.maze import Maze
 # =====================================================
 QUIET = False
 CONFIRM_STOP = True
+FACTOR = 1
 SAVE_DIR = ".\\stored_maps\\{:.0f}.maze"
 HEIGHT = 16
 WIDTH = 16
@@ -28,7 +29,8 @@ def main():
                       delay=DISPLAY_DELAY,
                       quiet=QUIET,
                       explorer_num=EXPLORE_NUM,
-                      confirm_stop=CONFIRM_STOP)
+                      confirm_stop=CONFIRM_STOP,
+                      factor=FACTOR)
 
 
 if __name__ == "__main__":

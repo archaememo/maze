@@ -1,5 +1,11 @@
 # Deep Q-learning Agent
+# import collections
+# from keras.models import Sequential
+# from keras.tf.keras.layers import Dense
+# from keras import optimizers
 import tensorflow as tf
+# print(tf.__version__)
+# print(tf.keras.__version__)
 import numpy as np
 import random
 from agents.abstract_agent import AbstractAgent
@@ -11,6 +17,7 @@ GAMMA = 0.8
 LEARNING_RATE = 0.01
 MEM_LEN = 20000
 LAYER_INFO = [64, 256, 128, 32]
+LAYER_FACTOR = 1
 EVALUATE_EPISODE = 32
 BATCH_SIZE = 32
 
@@ -24,16 +31,18 @@ class Agent(AbstractAgent):
                  mem_len=MEM_LEN,
                  gamma=GAMMA,
                  learning_rate=LEARNING_RATE,
-                 epsilon_decay=EPSILON_DECAY):
+                 epsilon_decay=EPSILON_DECAY,
+                 factor=LAYER_FACTOR):
         ''' Deep q-learning agnet '''
 
         super(Agent, self).__init__(state_size=state_size,
                                     action_size=action_size,
                                     mem_len=mem_len,
                                     gamma=gamma,
-                                    epsilon_decay=epsilon_decay)
+                                    epsilon_decay=epsilon_decay,
+                                    factor=factor)
 
-        self.layer_info = LAYER_INFO
+        self.layer_info = [int(x * self.factor) for x in LAYER_INFO]
         self.model = self._build_model()
         # self.graph = tf.get_default_graph()
 
