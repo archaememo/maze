@@ -1,0 +1,5 @@
+[
+  "test_maze_basic.py::test_init",
+  "test_maze_basic.py::test_reset",
+  "test_maze_basic.py::test_step"
+]
