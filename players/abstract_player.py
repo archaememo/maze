@@ -106,15 +106,16 @@ class AbstractPlayer(object):
         self.delay_t = self.delay_default
         self.last_steps = 0
         self.cur_episode = 0
+        self.no_verify_episode = 0
 
         for self.cur_episode in range(self.episode):
             if not self.wait_verify:
-                is_find_goal = self.explore_process(self.maze)
-                self.train_process(is_find_goal)
-            if (self.cur_episode % VERIFY_EPISODE == VERIFY_EPISODE -
-                    1) or self.wait_verify or (
-                        self.agent.score[1] > ACCURACY_THRESHOLD
-                        and is_find_goal):
+                find_goal = self.explore_process(self.maze)
+                self.train_process(find_goal)
+            self.no_verify_episode += 1
+            if ((self.no_verify_episode > VERIFY_EPISODE
+                 or self.agent.score[1] > ACCURACY_THRESHOLD)
+                    and find_goal):
                 reward, done, steps = self.verify_exp(self.delay_t)
                 if done and (reward > 0):
                     if self.verify_suc_proc():
