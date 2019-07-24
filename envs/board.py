@@ -9,9 +9,6 @@ This script is the environment part of this example.
 Forked from https://morvanzhou.github.io/tutorials/ and
 make some improvement
 """
-# import numpy as np
-# import random
-import os
 import sys
 if sys.version_info.major == 2:
     import Tkinter as tk
@@ -35,23 +32,20 @@ UNIT = 40  # default pixels of a grid
 
 
 class Board(tk.Tk, object):
-    def __init__(self, height=HEIGHT, width=WIDTH, unit=UNIT, map_path=None):
+    def __init__(self, width=WIDTH, height=HEIGHT, unit=UNIT):
         # action ['Up', 'Down', 'Left', 'Right']
         super(Board, self).__init__()
         self.unit = unit
-        if map_path is not None and os.path.exists(map_path):
-            self._load_map(map_path)
-        else:
-            self.height = height
-            self.width = width
-        # self._init_window()
+        self.height = height
+        self.width = width
+        self._init_window()
 
     def reset(self):
         self.cur_position = self.origin_position.copy()
         self._clear_text()
         return self.get_observation
 
-    def init_window(self):
+    def _init_window(self):
         unit = self.unit
         # width x height
         self.geometry('{0}x{1}'.format((self.width - 1) * unit,
@@ -94,25 +88,6 @@ class Board(tk.Tk, object):
             x0, y0, x1, y1 = 0, r, self.width * unit, r
             cv.create_line(x0, y0, x1, y1)
 
-        # cv.create_line((self.width - 2)* unit + 2 * edge, 0, (self.width - 2)* unit + 2 * edge, (self.height - 2) * unit + 2 * edge)
-
-        # cv.create_line(0, 0, self.width* unit + 2 * edge, 0)
-        # cv.create_line(0, edge, self.width* unit + 2 * edge, edge)
-        # cv.create_line(0, self.height * unit, self.width* unit + 2 * edge, 0)
-
-        # cv.create_line(self.width* unit + edge, 0, self.width* unit + edge, (self.height - 2) * unit + 2 * edge)
-        # cv.create_line(self.width* unit + 2 * edge, 0, self.width* unit + 2 * edge, (self.height - 2) * unit + 2 * edge)
-
-        # cv.create_line(0, 0, 0, (self.height - 2) * unit + 2 * edge)
-        # cv.create_line(0, 0, 0, (self.height - 2) * unit + 2 * edge)
-        # cv.create_line(0, 0, 0, (self.height - 2) * unit + 2 * edge)
-
-        # for c in range(0, (self.height + 1) * unit, unit):
-        #     x0, y0, x1, y1 = c, 0, c, self.height * unit
-        #     cv.create_line(x0, y0, x1, y1)
-        # for r in range(0, (self.width + 1) * unit, unit):
-        #     x0, y0, x1, y1 = 0, r, self.width * unit, r
-        #     cv.create_line(x0, y0, x1, y1)
         self._set_edge()
         self.canvas.pack()
 

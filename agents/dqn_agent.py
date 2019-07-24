@@ -2,6 +2,7 @@
 import tensorflow as tf
 import numpy as np
 import random
+import os
 from agents.abstract_agent import AbstractAgent
 
 # @Hyper parameters
@@ -9,10 +10,11 @@ from agents.abstract_agent import AbstractAgent
 EPSILON_DECAY = 0.995
 GAMMA = 0.8
 LEARNING_RATE = 0.01
-MEM_LEN = 20000
+MEM_LEN = 2000
 LAYER_INFO = [64, 256, 128, 32]
-EVALUATE_EPISODE = 32
-BATCH_SIZE = 32
+EVALUATE_EPISODE = 8
+BATCH_SIZE = 64
+PARAM_FILE = "{}.para"
 
 # =====================================================
 
@@ -24,51 +26,45 @@ class Agent(AbstractAgent):
                  mem_len=MEM_LEN,
                  gamma=GAMMA,
                  learning_rate=LEARNING_RATE,
-                 epsilon_decay=EPSILON_DECAY):
+                 epsilon_decay=EPSILON_DECAY,
+                 mdl_file=None):
         ''' Deep q-learning agnet '''
 
         super(Agent, self).__init__(state_size=state_size,
                                     action_size=action_size,
                                     mem_len=mem_len,
                                     gamma=gamma,
-                                    epsilon_decay=epsilon_decay)
+                                    epsilon_decay=epsilon_decay,
+                                    mdl_file=mdl_file)
 
-        self.layer_info = LAYER_INFO
-        self.model = self._build_model()
-        # self.graph = tf.get_default_graph()
+        if self.mdl_file:
+            if os.path.exists(mdl_file):
+                self.model = tf.keras.models.load_model(mdl_file)
+            else:
+                self.model = self._build_model()
+            if os.path.exists(PARAM_FILE.format(mdl_file)):
+                with open(PARAM_FILE.format(mdl_file)) as f:
+                    self.epsilon = float(f.readline())
+            self.best_accuracy = 0
+        else:
+            self.model = self._build_model()
 
-    def _build_model(self):
+    def _build_model(self, layer_info=LAYER_INFO):
         # Neural Net for Deep-Q learning Model
 
         model = tf.keras.Sequential()
         model.add(
-            tf.keras.layers.Dense(self.layer_info[0],
+            tf.keras.layers.Dense(layer_info[0],
                                   activation='relu',
                                   input_dim=self.state_size))
-        for i in range(1, len(self.layer_info)):
-            model.add(
-                tf.keras.layers.Dense(self.layer_info[i], activation='relu'))
-        model.add(tf.keras.layers.Dropout(0.2))
+        for i in range(1, len(layer_info)):
+            model.add(tf.keras.layers.Dense(layer_info[i], activation='relu'))
+        # model.add(tf.keras.layers.Dropout(0.2))
         model.add(tf.keras.layers.Dense(self.action_size, activation='linear'))
         model.compile(
             optimizer=tf.keras.optimizers.Adam(lr=self.learning_rate),
             loss="mse",
             metrics=[tf.keras.metrics.categorical_accuracy])
-
-        # tf.keras.tf.keras.layers.Dropout(0.2),
-        # model = Sequential()
-        # model.add(
-        #     Dense(
-        #         self.layer_info[0],
-        #         input_dim=self.state_size,
-        #         activation='relu'))
-        # add middle hidden layer
-        # for i in range(1, len(self.layer_info)):
-        #     model.add(Dense(self.layer_info[i], activation='relu'))
-        # model.add(Dense(self.action_size, activation='linear'))
-        # model.compile(
-        #     loss='mse',
-        #     optimizer=optimizers.Adam(lr=self.learning_rate))
         return model
 
     def act_raw(self, state, predict_only=False):
@@ -107,3 +103,15 @@ class Agent(AbstractAgent):
             self.score = self.model.evaluate(state_batch,
                                              target_batch,
                                              verbose=0)
+
+    def save_model(self, mdl_file=None):
+
+        if not mdl_file:
+            mdl_file = self.mdl_file
+        if mdl_file:
+            self.model.save(mdl_file)
+            with open(PARAM_FILE.format(mdl_file), "w+") as f:
+                f.write(str(self.epsilon))
+                f.write("\n")
+        else:
+            pass

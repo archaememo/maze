@@ -22,7 +22,8 @@ class AbstractAgent(object):
                  mem_len=MEM_LEN,
                  gamma=GAMMA,
                  lr=LEARNING_RATE,
-                 epsilon_decay=EPSILON_DECAY):
+                 epsilon_decay=EPSILON_DECAY,
+                 mdl_file=None):
         self.state_size = state_size
         self.action_size = action_size
         self.memory = collections.deque(maxlen=mem_len)
@@ -31,8 +32,9 @@ class AbstractAgent(object):
         self.epsilon_min = EPSILON_MIN
         self.epsilon_decay = epsilon_decay
         self.learning_rate = lr
-        self.score = 0
+        self.score = [0,0]
         self.train_count = 0
+        self.mdl_file = mdl_file
 
     def remember(self, data):
         ''' storage the explore data '''

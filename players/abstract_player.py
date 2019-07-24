@@ -1,5 +1,6 @@
 # import numpy as np
 import time
+import os
 # import threading
 # import copy
 # import collections
@@ -14,13 +15,13 @@ GRID_SIZE = 8
 BLOCK_NUM = 8
 EXPLORE_NUM = 1
 MAX_EPISODE = 100000
-PIXEL_UNIT = 40
 INC_EPISODE_THRESHOLD = 16
 INC_EPISODE_RATE = 1.2
 VERIFY_EPISODE = 32
 FEATURE_TYPE = 3
 VERIFY_THRESHOLD = 3
 VERIFY_TIME = 2
+ACCURACY_THRESHOLD = 0.98
 
 
 # =====================================================
@@ -31,7 +32,8 @@ class AbstractPlayer(object):
                  delay=DISPLAY_DELAY,
                  quiet=False,
                  explorer_num=EXPLORE_NUM,
-                 confirm_stop=True):
+                 confirm_stop=True,
+                 mdl_file=None):
         ''' init function of class MazePlayer'''
         # initilization
         self.AgentClass = AgentClass
@@ -41,18 +43,30 @@ class AbstractPlayer(object):
         self.delay_default = delay
         self.quiet = quiet
         self.n_explorers = explorer_num
-        self.max_step = int(maze.height * maze.width * 4)
+        self.max_step = int(maze.height * maze.width)
         self.episode = MAX_EPISODE
         self.learn_batch = int(maze.height + maze.width)
-        self.pixel_unit = PIXEL_UNIT
         self.start_t = time.time()
         self.confirm_stop = confirm_stop
         self.wait_verify = False
-        self._init_agent()
+        self.mdl_file = mdl_file
+        # if mdl_file:
+        #     self.state_file = SAVE_STATE.format(mdl_file)
+        #     if os.path.exists(self.state_file):
+        #         with open(self.state_file) as f:
+        #             self.episode = int(f.readline())
+        #     else:
+        #         self.episode = MAX_EPISODE
+        # else:
+        #     self.state_file = None
+        self.best_accuracy = 0
 
-    def _init_agent(self):
+        self._init_agent(mdl_file)
+
+    def _init_agent(self, mdl_file):
         self.agent = self.AgentClass(self.n_features,
-                                     self.n_actions)
+                                     self.n_actions,
+                                     mdl_file=mdl_file)
 
     def explore_process(self, env):
         done = False
@@ -95,10 +109,12 @@ class AbstractPlayer(object):
 
         for self.cur_episode in range(self.episode):
             if not self.wait_verify:
-                mod_epsilon = self.explore_process(self.maze)
-                self.train_process(mod_epsilon)
+                is_find_goal = self.explore_process(self.maze)
+                self.train_process(is_find_goal)
             if (self.cur_episode % VERIFY_EPISODE == VERIFY_EPISODE -
-                    1) or self.wait_verify:
+                    1) or self.wait_verify or (
+                        self.agent.score[1] > ACCURACY_THRESHOLD
+                        and is_find_goal):
                 reward, done, steps = self.verify_exp(self.delay_t)
                 if done and (reward > 0):
                     if self.verify_suc_proc():
@@ -106,10 +122,10 @@ class AbstractPlayer(object):
                 else:
                     self.verify_fail_proc(steps)
                     self.maze.reset()
-                if not self.quiet:
                     self.statistic()
-        self.statistic()
-        self.verify_exp(0.5)
+        else:
+            self.verify_exp(0.5)
+            self.statistic()
         self.exit_process()
 
     def exit_process(self):
@@ -137,6 +153,7 @@ class AbstractPlayer(object):
                     self.cur_episode))
                 self.delay_t = 0.5
                 self.done_t = 0
+                self.agent.save_model()
         self.agent.modify_epsilon(0.8)
         self.lost_t = 0
         return False
@@ -182,12 +199,16 @@ class AbstractPlayer(object):
                 break
         return reward, done, i
 
-
     def statistic(self):
         print("[{}] time:{:.2f}, steps:{}, epsilon:{:.3f}, "
-              "score:{:.3f}, train_c:{}".format(self.cur_episode,
-                                                time.time() - self.start_t,
-                                                self.last_steps,
-                                                self.agent.epsilon,
-                                                self.agent.score[0],
-                                                self.agent.train_count))
+              "loss:{:.3f}, acc:{:.3f}, train_c:{}".format(
+                  self.cur_episode,
+                  time.time() - self.start_t, self.last_steps,
+                  self.agent.epsilon, self.agent.score[0], self.agent.score[1],
+                  self.agent.train_count))
+        if self.mdl_file:
+            if self.best_accuracy == 0:
+                self.best_accuracy = self.agent.score[1]
+            if self.agent.score[1] > self.best_accuracy:
+                self.agent.save_model()
+                self.best_accuracy = self.best_accuracy
