@@ -1,6 +1,5 @@
 # import numpy as np
 import time
-import os
 # import threading
 # import copy
 # import collections
@@ -50,15 +49,6 @@ class AbstractPlayer(object):
         self.confirm_stop = confirm_stop
         self.wait_verify = False
         self.mdl_file = mdl_file
-        # if mdl_file:
-        #     self.state_file = SAVE_STATE.format(mdl_file)
-        #     if os.path.exists(self.state_file):
-        #         with open(self.state_file) as f:
-        #             self.episode = int(f.readline())
-        #     else:
-        #         self.episode = MAX_EPISODE
-        # else:
-        #     self.state_file = None
         self.best_accuracy = 0
 
         self._init_agent(mdl_file)
@@ -114,8 +104,7 @@ class AbstractPlayer(object):
                 self.train_process(find_goal)
             self.no_verify_episode += 1
             if ((self.no_verify_episode > VERIFY_EPISODE
-                 or self.agent.score[1] > ACCURACY_THRESHOLD)
-                    and find_goal):
+                 or self.agent.score[1] > ACCURACY_THRESHOLD) and find_goal):
                 reward, done, steps = self.verify_exp(self.delay_t)
                 if done and (reward > 0):
                     if self.verify_suc_proc():
@@ -124,6 +113,7 @@ class AbstractPlayer(object):
                     self.verify_fail_proc(steps)
                     self.maze.reset()
                     self.statistic()
+                self.no_verify_episode = 0
         else:
             self.verify_exp(0.5)
             self.statistic()
