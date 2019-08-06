@@ -14,20 +14,8 @@ import numpy as np
 import random
 import gym
 import gym.spaces as spaces
-
-# Hyper parameter
-# ==============================================================
-WIDTH = 8  # axis-x
-HEIGHT = 8  # axis-y
-N_BLOCK = 8
-BLOCK = -1  # reward & mark of block
-GOAL = 100  # reward & mark of goal
-EMPTY = 0  # reward & mark of empty
-UP = 0
-DOWN = 1
-LEFT = 2
-RIGHT = 3
-# ==============================================================
+from config import (GOAL, EMPTY, BLOCK, UP, DOWN, LEFT, RIGHT, HEIGHT, WIDTH,
+                    N_BLOCK)
 
 
 class Maze(gym.Env):
@@ -39,12 +27,8 @@ class Maze(gym.Env):
         self.origin_position = np.array([0, 0])  # start point
         self.goal_position = np.array([0, 0])
         self.action_space = spaces.Discrete(4)
-        # [distance to goal in x-axis, distance to goal in y-axis,
-        # reward of up, reward of down, reward of left, reward of right]
-        self.observation_space = spaces.Box(
-            np.array([0, 0, BLOCK, BLOCK, BLOCK, BLOCK]),
-            np.array([width, height, EMPTY, EMPTY, EMPTY, EMPTY],
-                     dtype=np.int64))
+        self.observation_space = spaces.Box(np.array([-1, -1]),
+                                            np.array([1, 1]))
 
     def generate_maze(self):
         # create a empty map with given width and height
@@ -59,38 +43,38 @@ class Maze(gym.Env):
             self.maze_map[self.width - 1][h] = BLOCK
 
         # set goal randomly
-        w = random.randrange(self.width)
-        h = random.randrange(self.height)
-        # find the empty positoin
-        while 0 != self.maze_map[w][h]:
-            w = random.randrange(self.width)
-            h = random.randrange(self.height)
+        w, h = self.find_empty_poistion()
         self.maze_map[w][h] = GOAL
         self.goal_position = np.array([w, h])
 
         # set blocks randomly
         for _ in range(self.n_block):
             # find the empty positoin
-            while 0 != self.maze_map[w][h]:
-                h = random.randrange(self.height)
-                w = random.randrange(self.width)
-            else:
-                self.maze_map[w][h] = BLOCK
+            w, h = self.find_empty_poistion()
+            self.maze_map[w][h] = BLOCK
 
-        # set me
-        w = random.randrange(self.width)
-        h = random.randrange(self.height)
         # make me at a certain distance from goal
-        while (EMPTY != self.maze_map[w][h]) or (np.sum(
-                np.abs(np.array([w, h]) - self.goal_position)) < int(
-                    (self.height + self.width - 4) / 2)):
-            h = random.randrange(self.height)
-            w = random.randrange(self.width)
+        w, h = self.find_empty_poistion()
+        while (np.sum(np.abs(np.array([w, h]) - self.goal_position)) < int(
+            (self.height + self.width - 4) / 2)):
+            w, h = self.find_empty_poistion()
         self.origin_position = np.array([w, h])
         self.cur_position = self.origin_position.copy()
 
-    def reset(self):
-        self.cur_position = self.origin_position.copy()
+    def find_empty_poistion(self):
+        w = random.randrange(self.width)
+        h = random.randrange(self.height)
+        while self.maze_map[w][h] != EMPTY:
+            w = random.randrange(self.width)
+            h = random.randrange(self.height)
+        return w, h
+
+    def reset(self, random_position=False):
+        if not random_position:
+            self.cur_position = self.origin_position.copy()
+        else:
+            w, h = self.find_empty_poistion()
+            self.cur_position = np.array([w, h])
         return self.observation(self.cur_position)
 
     def step(self, action, quiet=False):
@@ -115,7 +99,9 @@ class Maze(gym.Env):
         if BLOCK != reward:
             self.cur_position = position.copy()
 
-        return self.observation(position), reward, reward != EMPTY
+        key = (position[0] * self.width + position[1]) * 10 + action
+
+        return key, self.observation(position), reward, reward != EMPTY
 
     def render(self):
         pass
@@ -124,22 +110,9 @@ class Maze(gym.Env):
         return self.observation(self.cur_position)
 
     def observation(self, position):
-        distance = position - self.goal_position
-        next_state = np.array([0, 0, 0, 0])
-        if (position[1] == 0) or (self.maze_map[position[0]][position[1] -
-                                                             1] == BLOCK):
-            next_state[0] = -1
-        if (position[1] == self.height -
-                1) or (self.maze_map[position[0]][position[1] + 1] == BLOCK):
-            next_state[1] = -1
-        if (position[0] == 0) or (self.maze_map[position[0] -
-                                                1][position[1]] == BLOCK):
-            next_state[2] = -1
-        if (position[0] == self.width -
-                1) or (self.maze_map[position[0] + 1][position[1]] == BLOCK):
-            next_state[3] = -1
-        # return np.append(np.append(self.cur_position, distance), next_state)
-        return np.append(distance, next_state)
+        distance = (position - self.goal_position) / np.array(
+            [self.width, self.height])
+        return distance
 
     def save_map(self, path):
         with open(path, "w+") as f:
@@ -179,16 +152,9 @@ class Maze(gym.Env):
                     elif self.maze_map[w][h] == GOAL:
                         self.goal_position[0] = w
                         self.goal_position[1] = h
+        return self
 
 
 # simple test
 if __name__ == "__main__":
-    env = Maze()
-    env.generate_maze()
-
-    for i in range(100000):
-        # debug
-        env.step(random.randrange(env.action_space.n), quiet=False)
-        if i % 100 == 0:
-            env.reset()
-    input()
+    pass

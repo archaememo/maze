@@ -1,47 +1,27 @@
-# import numpy as np
 import time
-# import threading
-# import copy
-# import collections
-# import sys
-# from env.maze import Maze
-# from agents.if_agent import AgentInterface
-
-# @Hyper parameters
-# =====================================================
-DISPLAY_DELAY = 0.01
-GRID_SIZE = 8
-BLOCK_NUM = 8
-EXPLORE_NUM = 1
-MAX_EPISODE = 100000
-INC_EPISODE_THRESHOLD = 16
-INC_EPISODE_RATE = 1.2
-VERIFY_EPISODE = 32
-FEATURE_TYPE = 3
-VERIFY_THRESHOLD = 3
-VERIFY_TIME = 2
-ACCURACY_THRESHOLD = 0.98
+import random
+import numpy as np
+from config import (
+    MAX_EPISODE,
+    DISPLAY_DELAY,
+    ACCURACY_THRESHOLD,
+    VERIFY_EPISODE,
+    VERIFY_TIME,
+    VERIFY_THRESHOLD,
+)
 
 
-# =====================================================
 class AbstractPlayer(object):
     def __init__(self,
                  AgentClass,
                  maze,
-                 delay=DISPLAY_DELAY,
                  quiet=False,
-                 explorer_num=EXPLORE_NUM,
                  confirm_stop=True,
                  mdl_file=None):
         ''' init function of class MazePlayer'''
         # initilization
-        self.AgentClass = AgentClass
         self.maze = maze
-        self.n_features = maze.observation_space.shape[0]
-        self.n_actions = maze.action_space.n
-        self.delay_default = delay
         self.quiet = quiet
-        self.n_explorers = explorer_num
         self.max_step = int(maze.height * maze.width)
         self.episode = MAX_EPISODE
         self.learn_batch = int(maze.height + maze.width)
@@ -50,76 +30,96 @@ class AbstractPlayer(object):
         self.wait_verify = False
         self.mdl_file = mdl_file
         self.best_accuracy = 0
+        self.AgentClass = AgentClass
+        self.agent = AgentClass(
+            state_size=self.maze.observation_space.shape[0],
+            action_size=self.maze.action_space.n,
+            mdl_file=self.mdl_file)
 
-        self._init_agent(mdl_file)
+    def init_dbg(self):
+        self.dbg_info = [[0 for i in range(self.maze.height)]
+                         for j in range(self.maze.width)]
 
-    def _init_agent(self, mdl_file):
-        self.agent = self.AgentClass(self.n_features,
-                                     self.n_actions,
-                                     mdl_file=mdl_file)
+    def set_dbg_info(self):
+        for w in range(self.maze.width):
+            for h in range(self.maze.height):
+                state = self.maze.observation(np.array([w, h]))
+                _, _, info = self.agent.act_raw(state, predict_only=True)
+                self.dbg_info[w][h] = info
 
-    def explore_process(self, env):
+    @staticmethod
+    def explore(env, agent, quiet):
         done = False
         state = env.get_poition()
+        keys = []
         cache = []
-        for _ in range(self.max_step):
-            action, _ = self.agent.act(state)
-            next_state, reward, done = env.step(action, quiet=self.quiet)
+        continue_repeated_cn = 0
+        while True:
+            action, _ = agent.act(state)
+            key, next_state, reward, done = env.step(action, quiet=quiet)
             try:
-                cache.index((state, action, reward, next_state, done))
-                continue
+                keys.index(key)
+                continue_repeated_cn += 1
+                if continue_repeated_cn > 5:
+                    break
             except ValueError:
+                keys.append(key)
                 cache.append((state, action, reward, next_state, done))
-
-            if done and (reward > 0):
-                # enforce success memory
-                for _ in range(8):
-                    for r in cache[-8:]:
-                        self.agent.remember(r)
-                env.reset()
-                break
+                continue_repeated_cn = 0
+                if done and (reward > 0):
+                    break
             state = next_state
-        for r in cache:
-            try:
-                self.agent.memory.index(r)
-            except ValueError:
-                self.agent.remember(r)
-        return done and (reward > 0)
+        return done and (reward > 0), cache
 
-    def train_process(self, mod_epsilon=True):
-        self.agent.train(mod_epsilon)
-
-    def run(self):
+    def init_run_var(self):
         self.done_t = 0
         self.lost_t = 0
         self.verify_t = 0
-        self.delay_t = self.delay_default
+        self.delay_t = DISPLAY_DELAY
         self.last_steps = 0
         self.cur_episode = 0
-        self.no_verify_episode = 0
 
+    def run(self):
+        self.init_dbg()
+        self.init_run_var()
+        no_verify_episode = 0
+        no_find_episode = 0
         for self.cur_episode in range(self.episode):
             if not self.wait_verify:
-                find_goal = self.explore_process(self.maze)
-                self.train_process(find_goal)
-            self.no_verify_episode += 1
-            if ((self.no_verify_episode > VERIFY_EPISODE
-                 or self.agent.score[1] > ACCURACY_THRESHOLD) and find_goal):
-                reward, done, steps = self.verify_exp(self.delay_t)
-                if done and (reward > 0):
-                    if self.verify_suc_proc():
-                        break
+                self.maze.reset(random.random() < min(self.agent.epsilon, 0.5))
+                find_goal, cache = AbstractPlayer.explore(
+                    self.maze, self.agent, self.quiet)
+                for r in cache:
+                    self.agent.remember(r)
+                self.agent.train()
+                self.agent.evaluate()
+                if find_goal:
+                    no_find_episode = 0
+                    if self.agent.score[1] > ACCURACY_THRESHOLD:
+                        self.agent.decrease_epsilon()
                 else:
-                    self.verify_fail_proc(steps)
-                    self.maze.reset()
-                    self.statistic()
-                self.no_verify_episode = 0
+                    no_find_episode += 1
+                    if no_find_episode > 5:
+                        self.agent.increase_epsilon()
+                if (find_goal and self.agent.score[1] > ACCURACY_THRESHOLD):
+                    self.agent.decrease_epsilon()
+            no_verify_episode += 1
+            if no_verify_episode > VERIFY_EPISODE and (self.agent.score[1] >
+                                                       ACCURACY_THRESHOLD):
+                if self.verify():
+                    self.agent.save_model()
+                    break
+                else:
+                    no_verify_episode = 0
+            if self.cur_episode % VERIFY_EPISODE == VERIFY_EPISODE - 1:
+                self.statistic()
+                self.set_dbg_info()
         else:
-            self.verify_exp(0.5)
+            self.verify()
             self.statistic()
-        self.exit_process()
+        self.exit()
 
-    def exit_process(self):
+    def exit(self):
         if self.confirm_stop:
             if not self.quiet:
                 while True:
@@ -135,6 +135,7 @@ class AbstractPlayer(object):
             if self.verify_t > VERIFY_TIME - 1:
                 print("[{}] success to train mode to find goal...".format(
                     self.cur_episode))
+
                 return True
         else:
             self.done_t += 1
@@ -144,23 +145,10 @@ class AbstractPlayer(object):
                     self.cur_episode))
                 self.delay_t = 0.5
                 self.done_t = 0
-                self.agent.save_model()
-        self.agent.modify_epsilon(0.8)
         self.lost_t = 0
         return False
 
     def verify_fail_proc(self, steps):
-        if steps <= self.last_steps:
-            # step less than or equal to before, not good
-            self.lost_t += 1
-            if self.lost_t > INC_EPISODE_THRESHOLD:
-                # increase epsilon rate if stay in bad status
-                self.agent.modify_epsilon(INC_EPISODE_RATE)
-                self.lost_t = 0
-        else:
-            # step farther
-            self.lost_t = max(self.lost_t - 1, 0)
-        # Record the latest steps
         self.last_steps = steps
         self.done_t = max(self.done_t - 1, 0)
         if self.wait_verify:
@@ -168,18 +156,18 @@ class AbstractPlayer(object):
             print("[{}] Out of verification status...".format(
                 self.cur_episode))
             self.verify_t = 0
-            self.delay_t = self.delay_default
+            self.delay_t = DISPLAY_DELAY
 
-    def verify_exp(self, deplay_time=0.01):
+    def verify_experince(self, deplay_time=DISPLAY_DELAY):
         i = 0
         done = False
-        state = self.maze.reset()
-        self.maze.render()
+        state = self.maze.get_poition()
+        # self.maze.render()
         track = [list(state)]
         while not done:
             i = i + 1
             action, _ = self.agent.act(state, True)
-            state, reward, done = self.maze.step(action, quiet=False)
+            _, state, reward, done = self.maze.step(action, quiet=False)
             if list(state) in track:
                 break
             else:
@@ -189,6 +177,15 @@ class AbstractPlayer(object):
             if i > self.max_step:
                 break
         return reward, done, i
+
+    def verify(self):
+        self.maze.reset()
+        reward, done, steps = self.verify_experince(self.delay_t)
+        if done and (reward > 0):
+            return self.verify_suc_proc()
+        else:
+            self.verify_fail_proc(steps)
+            return False
 
     def statistic(self):
         print("[{}] time:{:.2f}, steps:{}, epsilon:{:.3f}, "
